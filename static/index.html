@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<title>碰面地点查找器</title>
+<style>
+/* ===== Reset & Variables ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --color-bg: #f5f5f7;
+  --color-card: #ffffff;
+  --color-text: #1d1d1f;
+  --color-text-secondary: #6e6e73;
+  --color-accent: #0071e3;
+  --color-accent-hover: #0077ed;
+  --color-border: #d2d2d7;
+  --color-star: #f5a623;
+  --color-success: #34c759;
+  --color-error: #ff3b30;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  --font-size: clamp(14px, 2vw, 16px);
+  --font-title: clamp(18px, 3vw, 24px);
+  --touch-min: 44px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--font-size);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ===== Layout ===== */
+.app-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ===== Header ===== */
+.app-header {
+  text-align: center;
+  padding: 16px 0 12px;
+}
+.app-header h1 {
+  font-size: var(--font-title);
+  font-weight: 700;
+}
+.app-header p {
+  color: var(--color-text-secondary);
+  font-size: 0.9em;
+}
+
+/* ===== Search Panel ===== */
+.search-panel {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.search-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.search-row input {
+  width: 100%;
+  height: var(--touch-min);
+  padding: 0 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-row input:focus {
+  border-color: var(--color-accent);
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.filter-label {
+  font-size: 0.9em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  margin-right: 2px;
+}
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: all 0.2s;
+  background: var(--color-card);
+}
+.chip.active {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+.chip input { display: none; }
+
+.radius-select {
+  height: 36px;
+  padding: 0 8px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  background: var(--color-card);
+  cursor: pointer;
+  min-width: 90px;
+}
+
+.search-btn {
+  height: var(--touch-min);
+  padding: 0 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  flex-shrink: 0;
+  min-width: 80px;
+}
+.search-btn:hover { background: var(--color-accent-hover); }
+.search-btn:active { transform: scale(0.97); }
+.search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.search-btn.loading {
+  pointer-events: none;
+  color: transparent;
+  position: relative;
+}
+.search-btn.loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #fff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Main Content ===== */
+.main-content {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 16px;
+  min-height: 500px;
+}
+
+/* ===== Map ===== */
+.map-container {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  min-height: 400px;
+}
+#map {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+}
+
+/* ===== Results Panel ===== */
+.results-panel {
+  background: var(--color-card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 600px;
+}
+.results-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.results-header .count {
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  font-size: 0.9em;
+}
+.results-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+/* ===== POI Card ===== */
+.poi-card {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  border: 1.5px solid transparent;
+  margin-bottom: 8px;
+}
+.poi-card:hover,
+.poi-card.highlight {
+  background: #f0f6ff;
+  border-color: var(--color-accent);
+}
+.poi-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.poi-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ff9500;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.poi-name {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.poi-rating {
+  color: var(--color-star);
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.poi-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 3px;
+  padding-left: 30px;
+}
+.poi-travel {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding-left: 30px;
+}
+.poi-address {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding-left: 30px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== States ===== */
+.state-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  flex: 1;
+}
+.state-message .state-icon { font-size: 48px; margin-bottom: 12px; }
+.state-message .state-text { font-size: 15px; max-width: 240px; }
+
+.error-state .state-icon { font-size: 40px; }
+.error-state .state-text { color: var(--color-error); font-size: 14px; }
+
+/* ===== Marker Styles (rendered via AMap content) ===== */
+.marker-a, .marker-b, .marker-m, .marker-poi {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-weight: 700; color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3); pointer-events: auto;
+}
+.marker-a { width: 32px; height: 32px; background: #007aff; font-size: 14px; }
+.marker-b { width: 32px; height: 32px; background: #ff3b30; font-size: 14px; }
+.marker-m { width: 20px; height: 20px; background: #34c759; font-size: 10px; }
+.marker-poi {
+  width: 24px; height: 24px; background: #ff9500; font-size: 11px;
+}
+
+/* InfoWindow content */
+.info-content { padding: 4px; max-width: 220px; }
+.info-content .info-name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.info-content .info-detail { font-size: 12px; color: #666; }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .app-wrapper { padding: 8px; }
+
+  .search-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .filter-row {
+    gap: 8px;
+  }
+
+  .search-btn {
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .main-content {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  #map {
+    min-height: 0;
+    height: 40vh;
+  }
+
+  .results-panel {
+    max-height: none;
+  }
+
+  .results-list {
+    max-height: 50vh;
+  }
+
+  .chip {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+  .radius-select { height: 32px; }
+}
+
+@media (max-width: 400px) {
+  .filter-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .chip-group {
+    width: 100%;
+  }
+  .chip {
+    flex: 1;
+    justify-content: center;
+    min-width: 60px;
+  }
+}
+
+/* ===== AMap overrides ===== */
+.amap-info-content {
+  padding: 8px 12px !important;
+}
+</style>
+</head>
+<body>
+
+<div class="app-wrapper">
+  <!-- Header -->
+  <header class="app-header">
+    <h1>碰面地点查找器</h1>
+    <p>输入两个地址，找到最佳的碰面地点</p>
+  </header>
+
+  <!-- Search Panel -->
+  <div class="search-panel">
+    <div class="search-row">
+      <input id="addr1" type="text" placeholder="我的位置，如：北京朝阳区望京" autocomplete="off">
+      <input id="addr2" type="text" placeholder="对方位置，如：北京海淀区中关村" autocomplete="off">
+    </div>
+    <div class="filter-row">
+      <span class="filter-label">类型:</span>
+      <div class="chip-group" id="type-chips">
+        <label class="chip active"><input type="checkbox" value="咖啡" checked>☕ 咖啡</label>
+        <label class="chip active"><input type="checkbox" value="餐厅" checked>🍽️ 餐厅</label>
+        <label class="chip active"><input type="checkbox" value="茶馆" checked>🍵 茶馆</label>
+        <label class="chip active"><input type="checkbox" value="商场" checked>🛍️ 商场</label>
+      </div>
+      <select class="radius-select" id="radius">
+        <option value="1000">1km</option>
+        <option value="2000" selected>2km</option>
+        <option value="3000">3km</option>
+        <option value="5000">5km</option>
+      </select>
+      <button class="search-btn" id="search-btn" onclick="doSearch()">查找</button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="map-container">
+      <div id="map"></div>
+    </div>
+    <div class="results-panel" id="results-panel">
+      <div class="results-header">推荐结果 <span class="count" id="results-count"></span></div>
+      <div class="results-list" id="results-list">
+        <div class="state-message" id="initial-state">
+          <span class="state-icon"></span>
+          <span class="state-text">输入两个地址，点击「查找」开始</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AMap JS API 2.0 -->
+<script>
+// 安全密钥必须在加载 JS API 之前设置
+window._AMapSecurityConfig = {
+  securityJsCode: 'b5dc8bad7302714f53503b9fe4bf572c'
+};
+
+// Load AMap dynamically to handle key issues gracefully
+(function loadAMap() {
+  var key = 'de912627501aaae608eaa8c3180b53d8';
+  var script = document.createElement('script');
+  script.src = 'https://webapi.amap.com/maps?v=2.0&key=' + key + '&plugin=AMap.AutoComplete,AMap.Geocoder';
+  script.onerror = function() {
+    document.getElementById('map').innerHTML =
+      '<div class="state-message error-state">' +
+      '<span class="state-icon">&#9888;</span>' +
+      '<span class="state-text">地图加载失败。请确认高德 JS API Key 已配置「Web端(JS API)」平台权限</span>' +
+      '</div>';
+  };
+  document.head.appendChild(script);
+})();
+</script>
+
+<script>
+// ===== Global State =====
+var state = {
+  map: null,
+  markers: [],
+  infoWindows: [],
+  pois: [],
+  locationA: null,
+  locationB: null,
+  midpoint: null,
+  searching: false
+};
+
+// ===== Initialize Map =====
+function initMap() {
+  if (state.map) return;
+  if (typeof AMap === 'undefined') return;
+
+  state.map = new AMap.Map('map', {
+    zoom: 12,
+    center: [116.397428, 39.90923],
+    viewMode: '2D',
+    resizeEnable: true
+  });
+}
+
+// Retry init on AMap load
+var mapInitTimer = setInterval(function() {
+  if (typeof AMap !== 'undefined') {
+    clearInterval(mapInitTimer);
+    initMap();
+    initAutoComplete();
+  }
+}, 300);
+
+// Stop retry after 10s
+setTimeout(function() { clearInterval(mapInitTimer); }, 10000);
+
+// ===== AutoComplete =====
+function initAutoComplete() {
+  if (typeof AMap === 'undefined') return;
+  try {
+    new AMap.AutoComplete({ input: 'addr1' });
+    new AMap.AutoComplete({ input: 'addr2' });
+  } catch(e) { /* AutoComplete optional */ }
+}
+
+// ===== Chip Toggle =====
+document.getElementById('type-chips').addEventListener('click', function(e) {
+  var chip = e.target.closest('.chip');
+  if (!chip) return;
+  var cb = chip.querySelector('input');
+  cb.checked = !cb.checked;
+  chip.classList.toggle('active', cb.checked);
+});
+
+// ===== Enter key triggers search =====
+document.getElementById('addr1').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('addr2').focus();
+});
+document.getElementById('addr2').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doSearch();
+});
+
+// ===== Main Search =====
+function doSearch() {
+  if (state.searching) return;
+
+  var addr1 = document.getElementById('addr1').value.trim();
+  var addr2 = document.getElementById('addr2').value.trim();
+
+  if (!addr1 || !addr2) {
+    showMessage('input', '\u{1F4DD}', '请填写两个地址后再查找');
+    return;
+  }
+
+  // Collect selected types
+  var typeChips = document.querySelectorAll('#type-chips .chip.active input');
+  var types = [];
+  typeChips.forEach(function(cb) { types.push(cb.value); });
+  if (types.length === 0) {
+    showMessage('input', '\u{26A0}', '请至少选择一种场所类型');
+    return;
+  }
+
+  var radius = parseInt(document.getElementById('radius').value);
+  var btn = document.getElementById('search-btn');
+
+  // Loading state
+  state.searching = true;
+  btn.classList.add('loading');
+  btn.disabled = true;
+  showMessage('loading', '', '');
+
+  fetch('/api/meet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      addr1: addr1,
+      addr2: addr2,
+      type: types.join(','),
+      radius: radius,
+      limit: 6
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    state.searching = false;
+    btn.classList.remove('loading');
+    btn.disabled = false;
+
+    if (!res.success) {
+      showMessage('error', '\u{274C}', res.error || '查询失败，请重试');
+      return;
+    }
+
+    state.pois = res.data.pois;
+    state.locationA = res.data.location_a;
+    state.locationB = res.data.location_b;
+    state.midpoint = res.data.midpoint;
+
+    updateMap(res.data);
+    renderResults(res.data);
+  })
+  .catch(function(err) {
+    state.searching = false;
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    showMessage('error', '\u{1F4E1}', '网络请求失败: ' + err.message);
+  });
+}
+
+// ===== Show State Message =====
+function showMessage(type, icon, text) {
+  var list = document.getElementById('results-list');
+  var count = document.getElementById('results-count');
+  count.textContent = '';
+
+  var bgClass = type === 'error' ? ' error-state' : '';
+  list.innerHTML =
+    '<div class="state-message' + bgClass + '">' +
+    '<span class="state-icon">' + icon + '</span>' +
+    '<span class="state-text">' + text + '</span>' +
+    (type === 'loading' ? '<div style="margin-top:16px"><div style="width:32px;height:32px;border:3px solid #ddd;border-top-color:#0071e3;border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto"></div></div>' : '') +
+    '</div>';
+}
+
+// ===== Update Map =====
+function updateMap(data) {
+  if (!state.map) return;
+
+  // Clear old markers
+  state.markers.forEach(function(m) { m.setMap(null); });
+  state.markers = [];
+  state.infoWindows.forEach(function(iw) { iw.close(); });
+  state.infoWindows = [];
+
+  // Marker A
+  addMarker(data.location_a.lng, data.location_a.lat, 'marker-a', 'A',
+    '<div class="info-content"><div class="info-name">' + escHtml(data.location_a.address) + '</div><div class="info-detail">你的位置</div></div>');
+
+  // Marker B
+  addMarker(data.location_b.lng, data.location_b.lat, 'marker-b', 'B',
+    '<div class="info-content"><div class="info-name">' + escHtml(data.location_b.address) + '</div><div class="info-detail">对方位置</div></div>');
+
+  // Marker M (midpoint)
+  addMarker(data.midpoint.lng, data.midpoint.lat, 'marker-m', 'M',
+    '<div class="info-content"><div class="info-name">中点位置</div><div class="info-detail">' + escHtml(data.midpoint.address) + '</div></div>');
+
+  // Draw a dashed line between A and B
+  var line = new AMap.Polyline({
+    path: [
+      [data.location_a.lng, data.location_a.lat],
+      [data.location_b.lng, data.location_b.lat]
+    ],
+    strokeColor: '#999',
+    strokeWeight: 2,
+    strokeStyle: 'dashed',
+    strokeOpacity: 0.6,
+    zIndex: 1
+  });
+  line.setMap(state.map);
+  state._line = line;
+
+  // POI markers
+  data.pois.forEach(function(poi, i) {
+    if (i >= 15) return;
+    var content =
+      '<div class="info-content">' +
+      '<div class="info-name">' + escHtml(poi.name) + '</div>' +
+      '<div class="info-detail">' +
+      '评分: ' + escHtml(poi.rating) + ' | 人均: ' + escHtml(poi.avg_cost) + '<br>' +
+      '距你: ' + escHtml(poi.travel_time_a) + ' | 距对方: ' + escHtml(poi.travel_time_b) +
+      '</div></div>';
+    addMarker(poi.lng, poi.lat, 'marker-poi', String(i + 1), content, i);
+  });
+
+  // Fit all markers in view using overlays
+  if (state.markers.length > 0) {
+    state.map.setFitView(state.markers, false, [60, 40, 40, 40]);
+  }
+}
+
+function addMarker(lng, lat, cssClass, label, infoContent, poiIndex) {
+  var marker = new AMap.Marker({
+    position: [lng, lat],
+    content: '<div class="' + cssClass + '">' + label + '</div>',
+    offset: new AMap.Pixel(cssClass === 'marker-a' || cssClass === 'marker-b' ? -16 : -12, cssClass === 'marker-a' || cssClass === 'marker-b' ? -16 : -12),
+    zIndex: (cssClass === 'marker-a' || cssClass === 'marker-b') ? 200 : 100,
+    _poiIndex: poiIndex
+  });
+
+  marker.on('click', function() {
+    // Close all info windows
+    state.infoWindows.forEach(function(iw) { iw.close(); });
+    state.infoWindows = [];
+
+    var iw = new AMap.InfoWindow({
+      content: infoContent,
+      offset: new AMap.Pixel(0, -30)
+    });
+    iw.open(state.map, [lng, lat]);
+    state.infoWindows.push(iw);
+
+    // Highlight corresponding card
+    highlightCard(poiIndex);
+  });
+
+  marker.setMap(state.map);
+  state.markers.push(marker);
+}
+
+// ===== Render Results =====
+function renderResults(data) {
+  var list = document.getElementById('results-list');
+  var count = document.getElementById('results-count');
+
+  var midName = data.midpoint.address.length > 20
+    ? data.midpoint.address.substring(0, 20) + '...'
+    : data.midpoint.address;
+  count.textContent = '· ' + midName + ' 周边 · 共 ' + data.pois.length + ' 个';
+
+  if (data.pois.length === 0) {
+    list.innerHTML =
+      '<div class="state-message">' +
+      '<span class="state-icon">&#128270;</span>' +
+      '<span class="state-text">未找到合适场所<br>尝试扩大搜索范围</span>' +
+      '</div>';
+    return;
+  }
+
+  // Build cards with DocumentFragment for performance
+  var frag = document.createDocumentFragment();
+  data.pois.forEach(function(poi, i) {
+    var card = document.createElement('div');
+    card.className = 'poi-card';
+    card.setAttribute('data-poi-index', i);
+    card.onclick = function() { focusPoi(i); };
+    card.onmouseenter = function() { highlightCard(i); };
+    card.onmouseleave = function() { highlightCard(-1); };
+
+    var typeLabel = poi.category || '';
+    var typeEmoji = '';
+    if (typeLabel.indexOf('咖啡') !== -1) typeEmoji = '☕';
+    else if (typeLabel.indexOf('餐厅') !== -1) typeEmoji = '🍽️';
+    else if (typeLabel.indexOf('茶馆') !== -1) typeEmoji = '🍵';
+    else if (typeLabel.indexOf('商场') !== -1) typeEmoji = '🛍️';
+
+    card.innerHTML =
+      '<div class="poi-card-header">' +
+      '<span class="poi-index">' + (i + 1) + '</span>' +
+      '<span class="poi-name">' + escHtml(poi.name) + '</span>' +
+      '<span class="poi-rating">★' + escHtml(poi.rating) + '</span>' +
+      '</div>' +
+      '<div class="poi-meta">' +
+      '<span>' + typeEmoji + ' ' + escHtml(typeLabel) + '</span>' +
+      (poi.avg_cost !== '-' ? '<span>' + escHtml(poi.avg_cost) + '</span>' : '') +
+      '</div>' +
+      (poi.address ? '<div class="poi-address">📍' + escHtml(poi.address) + '</div>' : '') +
+      '<div class="poi-travel">' +
+      '<span>距你: ' + escHtml(poi.travel_time_a) + '</span>' +
+      '<span>距对方: ' + escHtml(poi.travel_time_b) + '</span>' +
+      '</div>';
+
+    frag.appendChild(card);
+  });
+
+  list.innerHTML = '';
+  list.appendChild(frag);
+}
+
+// ===== Card <-> Map Linking =====
+function highlightCard(index) {
+  var cards = document.querySelectorAll('.poi-card');
+  cards.forEach(function(c) { c.classList.remove('highlight'); });
+  if (index >= 0 && index < cards.length) {
+    cards[index].classList.add('highlight');
+    cards[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function focusPoi(index) {
+  if (!state.map || !state.pois[index]) return;
+  var poi = state.pois[index];
+
+  // Close previous info windows
+  state.infoWindows.forEach(function(iw) { iw.close(); });
+  state.infoWindows = [];
+
+  // Pan map
+  state.map.setZoomAndCenter(15, [poi.lng, poi.lat]);
+
+  // Open info window
+  var content =
+    '<div class="info-content">' +
+    '<div class="info-name">' + escHtml(poi.name) + '</div>' +
+    '<div class="info-detail">' +
+    '评分: ' + escHtml(poi.rating) + ' | 人均: ' + escHtml(poi.avg_cost) + '<br>' +
+    '距你: ' + escHtml(poi.travel_time_a) + ' | 距对方: ' + escHtml(poi.travel_time_b) +
+    '</div></div>';
+
+  var iw = new AMap.InfoWindow({
+    content: content,
+    offset: new AMap.Pixel(0, -30)
+  });
+  iw.open(state.map, [poi.lng, poi.lat]);
+  state.infoWindows.push(iw);
+
+  highlightCard(index);
+
+  // On mobile, scroll results into view
+  var panel = document.getElementById('results-panel');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ===== Utils =====
+function escHtml(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(String(str)));
+  return div.innerHTML;
+}
+
+// ===== Cleanup on resize =====
+window.addEventListener('resize', function() {
+  if (state.map) {
+    // Trigger map resize - remove old line
+    if (state._line) {
+      state._line.setMap(null);
+      state._line = null;
+    }
+  }
+});
+</script>
+
+</body>
+</html>
